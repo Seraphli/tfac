@@ -12,3 +12,7 @@ you have to feed new data while running.
 So it's hard to avoid using feed_dict.
 
 Using queue will improve performance significantly.
+
+## Installation
+
+Clone this repository and use `pip install .`
