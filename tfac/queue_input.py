@@ -39,7 +39,7 @@ class EnqueueThread(threading.Thread):
 
 
 class QueueInput(object):
-    def __init__(self, features, labels, queue_size=50):
+    def __init__(self, features, labels, queue_size):
         self.features = features
         self.labels = labels
         self.queue_size = queue_size
@@ -48,16 +48,17 @@ class QueueInput(object):
         self.inputs.extend(list(self.labels.values()))
         self._threads = []
         self._ops = []
+        self.idx = 0
 
     def build_op(self, batch_size):
-        thread = EnqueueThread(self.inputs, self.queue_size)
+        thread = EnqueueThread(self.inputs, self.queue_size[self.idx])
         self._threads.append(thread)
         dequeue = thread.dequeue_many_op(batch_size)
         _features = dict(zip(self.features.keys(), dequeue[:self.split_idx]))
         _labels = dict(zip(self.labels.keys(), dequeue[self.split_idx:]))
-        idx = len(self._ops)
+        self.idx = len(self._ops)
         self._ops.append((_features, _labels))
-        return idx, _features, _labels
+        return self.idx, _features, _labels
 
     def get_op(self, idx):
         return self._ops[idx]
