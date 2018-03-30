@@ -7,9 +7,9 @@ import time
 
 class ModeKeys(object):
     """Standard names for model modes.
-  
+
     The following standard keys are defined:
-  
+
     * `TRAIN`: training mode.
     * `EVAL`: evaluation mode.
     * `PREDICT`: inference mode.
@@ -66,45 +66,7 @@ def measure_time(func):
 
 
 @measure_time
-def original_tf():
-    # define features and labels
-    features = {
-        "x": tf.placeholder(tf.float32, [None, 784])
-    }
-
-    labels = {
-        "y": tf.placeholder(tf.int64, [None])
-    }
-
-    # build net
-    train_net = build_net(features, labels, ModeKeys.TRAIN, False, "org_")
-
-    # load mnist
-    mnist = input_data.read_data_sets('/tmp/tensorflow/mnist/input_data')
-
-    # initialize tensorflow session
-    sess = tf.InteractiveSession()
-    init_op = tf.global_variables_initializer()
-    sess.run(init_op)
-
-    # training
-    for _ in range(50000):
-        batch_xs, batch_ys = mnist.train.next_batch(32)
-        sess.run(train_net["train_op"], feed_dict={
-            features["x"]: batch_xs,
-            labels["y"]: batch_ys})
-
-    # predict
-    batch_xs, batch_ys = mnist.test.next_batch(50)
-    pred = sess.run(train_net["predictions"], feed_dict={
-        features["x"]: batch_xs,
-        labels["y"]: batch_ys})
-
-    sess.close()
-
-
-@measure_time
-def with_tfac():
+def with_fifo_queue():
     # define features and labels
     features = {
         "x": tf.placeholder(tf.float32, [None, 784])
@@ -115,15 +77,15 @@ def with_tfac():
     }
 
     # use QueueInput to build input op
-    qi = QueueInput(features, labels, [400, 100])
+    qi = QueueInput(features, labels, [400, 100], tf.FIFOQueue)
     idx, batch_features, batch_labels = qi.build_op(32)
     idx, pred_features, pred_labels = qi.build_op(50)
 
     # build net on two different input with same weights
     train_net = build_net(batch_features, batch_labels,
-                          ModeKeys.TRAIN, False, "tfac_")
+                          ModeKeys.TRAIN, False, "fifo_queue_")
     pred_net = build_net(pred_features, pred_labels,
-                         ModeKeys.PREDICT, tf.AUTO_REUSE, "tfac_")
+                         ModeKeys.PREDICT, tf.AUTO_REUSE, "fifo_queue_")
 
     # build sample function
     mnist = input_data.read_data_sets('/tmp/tensorflow/mnist/input_data')
@@ -140,7 +102,57 @@ def with_tfac():
     qi.run(sess, sample_fn)
 
     # training
-    for _ in range(50000):
+    for _ in range(100):
+        sess.run(train_net["train_op"])
+
+    # predict
+    pred = sess.run(pred_net["predictions"])
+
+    # stop QueueInput
+    qi.stop()
+
+    sess.close()
+
+
+@measure_time
+def with_random_shuffle_queue():
+    # define features and labels
+    features = {
+        "x": tf.placeholder(tf.float32, [None, 784])
+    }
+
+    labels = {
+        "y": tf.placeholder(tf.int64, [None])
+    }
+
+    # use QueueInput to build input op
+    qc = lambda **kwargs: tf.RandomShuffleQueue(**kwargs, min_after_dequeue=50)
+    qi = QueueInput(features, labels, [400, 100], queue_class=qc)
+    idx, batch_features, batch_labels = qi.build_op(32)
+    idx, pred_features, pred_labels = qi.build_op(50)
+
+    # build net on two different input with same weights
+    train_net = build_net(batch_features, batch_labels,
+                          ModeKeys.TRAIN, False, "rsq_")
+    pred_net = build_net(pred_features, pred_labels,
+                         ModeKeys.PREDICT, tf.AUTO_REUSE, "rsq_")
+
+    # build sample function
+    mnist = input_data.read_data_sets('/tmp/tensorflow/mnist/input_data')
+    sample_fn = []
+    sample_fn.append(partial(mnist.train.next_batch, 100))
+    sample_fn.append(partial(mnist.test.next_batch, 50))
+
+    # initialize tensorflow session
+    sess = tf.InteractiveSession()
+    init_op = tf.global_variables_initializer()
+    sess.run(init_op)
+
+    # run QueueInput
+    qi.run(sess, sample_fn)
+
+    # training
+    for _ in range(10000):
         sess.run(train_net["train_op"])
 
     # predict
@@ -153,12 +165,11 @@ def with_tfac():
 
 
 def main():
-    print("running original")
-    original_tf()
+    print("running with_fifo_queue")
+    with_fifo_queue()
     print("\n")
-    time.sleep(10)
-    print("running tfac")
-    with_tfac()
+    print("running with_random_shuffle_queue")
+    with_random_shuffle_queue()
 
 
 if __name__ == '__main__':
