@@ -82,7 +82,7 @@ class QueueInput(object):
         Args:
             features (dict): Dictionary represent features 
             labels (dict): Dictionary represent labels
-            queue_size (int): Size of queue 
+            queue_size (list): Size of queue 
             queue_class: Class or function to initialize queue
         """
         self.features = features
