@@ -143,7 +143,7 @@ class QueueInput(object):
             t.prepare(sess, sample_fn[idx])
             t.start()
 
-    def stop(self):
+    def close(self):
         for t in self._threads:
             t.should_stop = True
             t.close_queue()
