@@ -3,6 +3,7 @@ from tfac.queue_input import QueueInput
 from tensorflow.examples.tutorials.mnist import input_data
 from functools import partial
 import time
+from tfac.ops_runner import OpRunner
 
 
 class ModeKeys(object):
@@ -45,7 +46,7 @@ def build_net(features, labels, mode, reuse, prefix):
     optimizer = tf.train.GradientDescentOptimizer(learning_rate=0.001)
     train_op = optimizer.minimize(
         loss=loss,
-        global_step=tf.train.get_global_step())
+        global_step=tf.train.get_or_create_global_step())
 
     net = {
         "predictions": predictions,
@@ -56,9 +57,9 @@ def build_net(features, labels, mode, reuse, prefix):
 
 
 def measure_time(func):
-    def wrapper():
+    def wrapper(*args, **kwargs):
         start = time.time()
-        func()
+        func(*args, **kwargs)
         stop = time.time()
         print("runtime: " + str(stop - start) + " sec")
 
@@ -66,7 +67,7 @@ def measure_time(func):
 
 
 @measure_time
-def original_tf():
+def original_tf(mnist):
     # define features and labels
     features = {
         "x": tf.placeholder(tf.float32, [None, 784])
@@ -78,9 +79,6 @@ def original_tf():
 
     # build net
     train_net = build_net(features, labels, ModeKeys.TRAIN, False, "org_")
-
-    # load mnist
-    mnist = input_data.read_data_sets('/tmp/tensorflow/mnist/input_data')
 
     # initialize tensorflow session
     sess = tf.InteractiveSession()
@@ -104,7 +102,7 @@ def original_tf():
 
 
 @measure_time
-def with_tfac():
+def with_tfac(mnist):
     # define features and labels
     features = {
         "x": tf.placeholder(tf.float32, [None, 784])
@@ -125,8 +123,9 @@ def with_tfac():
     pred_net = build_net(pred_features, pred_labels,
                          ModeKeys.PREDICT, tf.AUTO_REUSE, "tfac_")
 
+    train_runner = OpRunner(train_net["train_op"])
+
     # build sample function
-    mnist = input_data.read_data_sets('/tmp/tensorflow/mnist/input_data')
     sample_fn = []
     sample_fn.append(partial(mnist.train.next_batch, 100))
     sample_fn.append(partial(mnist.test.next_batch, 50))
@@ -138,27 +137,36 @@ def with_tfac():
 
     # run QueueInput
     qi.run(sess, sample_fn)
+    train_runner.run(sess)
 
     # training
     for _ in range(50000):
-        sess.run(train_net["train_op"])
+        train_runner.execute()
+
+    train_runner.close()
 
     # predict
     pred = sess.run(pred_net["predictions"])
 
-    # stop QueueInput
-    qi.stop()
+    # close QueueInput
+    qi.close()
 
     sess.close()
 
 
 def main():
+    sess = tf.InteractiveSession()
+    sess.close()
     print("running original")
-    original_tf()
+    mnist = input_data.read_data_sets('/tmp/tensorflow/mnist/input_data',
+                                      source_url='http://yann.lecun.com/exdb/mnist/')
+    original_tf(mnist)
     print("\n")
     time.sleep(10)
     print("running tfac")
-    with_tfac()
+    mnist = input_data.read_data_sets('/tmp/tensorflow/mnist/input_data',
+                                      source_url='http://yann.lecun.com/exdb/mnist/')
+    with_tfac(mnist)
 
 
 if __name__ == '__main__':

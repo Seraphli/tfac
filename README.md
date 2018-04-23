@@ -2,7 +2,8 @@
 
 Package for accelerate tensorflow input pipeline using tensorflow queue
 
-Example are provide [here](example/mlp.py)
+Example is provided [here](example/mlp.py)
+Test result is provided [here](example/mlp_result.md)
 
 ## Why build this package
 
