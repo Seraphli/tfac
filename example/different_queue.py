@@ -109,7 +109,7 @@ def with_fifo_queue():
     pred = sess.run(pred_net["predictions"])
 
     # stop QueueInput
-    qi.stop()
+    qi.close()
 
     sess.close()
 
@@ -159,7 +159,7 @@ def with_random_shuffle_queue():
     pred = sess.run(pred_net["predictions"])
 
     # stop QueueInput
-    qi.stop()
+    qi.close()
 
     sess.close()
 
