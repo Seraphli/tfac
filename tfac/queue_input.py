@@ -62,8 +62,9 @@ class EnqueueThread(threading.Thread):
         while not self.should_stop:
             try:
                 data = self.sample_fn()
-                feed_dict = dict(zip(self.inputs, data))
-                self.sess.run(self._op, feed_dict=feed_dict)
+                if data:
+                    feed_dict = dict(zip(self.inputs, data))
+                    self.sess.run(self._op, feed_dict=feed_dict)
             except tf.errors.CancelledError:
                 # Avoid exception output when run close_op
                 pass
