@@ -96,6 +96,7 @@ class QueueInput(object):
         self._threads = []
         self._ops = []
         self.idx = 0
+        self.is_run = False
 
     def build_op(self, batch_size):
         """Build tensorflow op based on batch_size
@@ -143,8 +144,11 @@ class QueueInput(object):
         for idx, t in enumerate(self._threads):
             t.prepare(sess, sample_fn[idx])
             t.start()
+        self.is_run = True
 
     def close(self):
+        if not self.is_run:
+            return
         for t in self._threads:
             t.should_stop = True
             t.close_queue()
