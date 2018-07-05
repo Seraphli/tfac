@@ -1,5 +1,6 @@
 import threading
 import tensorflow as tf
+import time
 
 
 class EnqueueThread(threading.Thread):
@@ -65,6 +66,8 @@ class EnqueueThread(threading.Thread):
                 if data:
                     feed_dict = dict(zip(self.inputs, data))
                     self.sess.run(self._op, feed_dict=feed_dict)
+                else:
+                    time.sleep(0.1)
             except tf.errors.CancelledError:
                 # Avoid exception output when run close_op
                 pass
