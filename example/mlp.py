@@ -68,22 +68,25 @@ def measure_time(func):
 
 @measure_time
 def original_tf(mnist):
-    # define features and labels
-    features = {
-        "x": tf.placeholder(tf.float32, [None, 784])
-    }
+    graph = tf.Graph()
+    with graph.as_default():
+        # define features and labels
+        features = {
+            "x": tf.placeholder(tf.float32, [None, 784])
+        }
 
-    labels = {
-        "y": tf.placeholder(tf.int64, [None])
-    }
+        labels = {
+            "y": tf.placeholder(tf.int64, [None])
+        }
 
-    # build net
-    train_net = build_net(features, labels, ModeKeys.TRAIN, False, "org_")
+        # build net
+        train_net = build_net(features, labels, ModeKeys.TRAIN, False, "org_")
 
-    # initialize tensorflow session
-    sess = tf.InteractiveSession()
-    init_op = tf.global_variables_initializer()
-    sess.run(init_op)
+        # initialize tensorflow session
+        sess = tf.InteractiveSession()
+        init_op = tf.global_variables_initializer()
+        graph.finalize()
+        sess.run(init_op)
 
     # training
     for _ in range(50000):
@@ -103,40 +106,44 @@ def original_tf(mnist):
 
 @measure_time
 def with_tfac(mnist):
-    # define features and labels
-    features = {
-        "x": tf.placeholder(tf.float32, [None, 784])
-    }
+    graph = tf.Graph()
+    with graph.as_default():
+        # define features and labels
+        features = {
+            "x": tf.placeholder(tf.float32, [None, 784])
+        }
 
-    labels = {
-        "y": tf.placeholder(tf.int64, [None])
-    }
+        labels = {
+            "y": tf.placeholder(tf.int64, [None])
+        }
 
-    # use QueueInput to build input op
-    qi = QueueInput(features, labels, [400, 100])
-    idx, batch_features, batch_labels = qi.build_op(32)
-    idx, pred_features, pred_labels = qi.build_op(50)
+        # use QueueInput to build input op
+        qi = QueueInput(features, labels, [400, 100])
+        idx, batch_features, batch_labels = qi.build_op(32)
+        idx, pred_features, pred_labels = qi.build_op(50)
 
-    # build net on two different input with same weights
-    train_net = build_net(batch_features, batch_labels,
-                          ModeKeys.TRAIN, False, "tfac_")
-    pred_net = build_net(pred_features, pred_labels,
-                         ModeKeys.PREDICT, tf.AUTO_REUSE, "tfac_")
+        # build net on two different input with same weights
+        train_net = build_net(batch_features, batch_labels,
+                              ModeKeys.TRAIN, False, "tfac_")
+        pred_net = build_net(pred_features, pred_labels,
+                             ModeKeys.PREDICT, tf.AUTO_REUSE, "tfac_")
 
-    train_runner = OpRunner(train_net["train_op"])
+        train_runner = OpRunner(train_net["train_op"])
 
-    # build sample function
-    sample_fn = []
-    sample_fn.append(partial(mnist.train.next_batch, 100))
-    sample_fn.append(partial(mnist.test.next_batch, 50))
+        # build sample function
+        sample_fn = []
+        sample_fn.append(partial(mnist.train.next_batch, 100))
+        sample_fn.append(partial(mnist.test.next_batch, 50))
 
-    # initialize tensorflow session
-    sess = tf.InteractiveSession()
-    init_op = tf.global_variables_initializer()
-    sess.run(init_op)
+        # initialize tensorflow session
+        sess = tf.InteractiveSession()
+        init_op = tf.global_variables_initializer()
+        # run QueueInput before graph finalize
+        qi.run(sess, sample_fn)
+        graph.finalize()
+        sess.run(init_op)
 
-    # run QueueInput
-    qi.run(sess, sample_fn)
+    # run train runner
     train_runner.run(sess)
 
     # training
