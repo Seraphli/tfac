@@ -4,18 +4,20 @@ import time
 
 
 class EnqueueThread(threading.Thread):
-    def __init__(self, inputs, capacity, queue_class):
+    def __init__(self, inputs, capacity, name, queue_class):
         """Thread for enqueue and dequeue 
         
         Args:
             inputs (list): List of placeholder
-            capacity (int): Size of queue 
+            capacity (int): Size of queue
+            name (str): Name from queue input
             queue_class : Function for initialize queue
         """
         super(EnqueueThread, self).__init__()
         self.daemon = True
         self.inputs = inputs
         self.capacity = capacity
+        self.name = name
         self.queue = queue_class(
             capacity=self.capacity,
             dtypes=[i.dtype for i in self.inputs],
@@ -80,18 +82,20 @@ class EnqueueThread(threading.Thread):
 
 class QueueInput(object):
     def __init__(self, features, labels, queue_size,
-                 queue_class=tf.FIFOQueue):
+                 name='', queue_class=tf.FIFOQueue):
         """Initialize based on features and labels
-        
+
         Args:
-            features (dict): Dictionary represent features 
+            features (dict): Dictionary represent features
             labels (dict): Dictionary represent labels
-            queue_size (list): Size of queue 
+            queue_size (list): Size of queue
+            name (str): Name of queue input
             queue_class: Class or function to initialize queue
         """
         self.features = features
         self.labels = labels
         self.queue_size = queue_size
+        self.name = name
         self.queue_class = queue_class
         self.inputs = list(self.features.values())
         self.split_idx = len(self.inputs)
@@ -103,16 +107,16 @@ class QueueInput(object):
 
     def build_op(self, batch_size):
         """Build tensorflow op based on batch_size
-        
+
         Args:
             batch_size (int): batch size
 
         Returns:
             index of op, features op, labels op
-            
+
         """
         thread = EnqueueThread(self.inputs, self.queue_size[self.idx],
-                               self.queue_class)
+                               self.name, self.queue_class)
         self._threads.append(thread)
         dequeue = thread.dequeue_many_op(batch_size)
         _features = dict(zip(self.features.keys(), dequeue[:self.split_idx]))
@@ -123,7 +127,7 @@ class QueueInput(object):
 
     def get_op(self, idx):
         """Get tensorflow op according to index
-        
+
         Args:
             idx (int): index of op
 
@@ -135,10 +139,10 @@ class QueueInput(object):
 
     def run(self, sess, sample_fn):
         """Run queue with provided session
-        
+
         Args:
             sess: Tensorflow session
-            sample_fn (list): List of sample function for every op 
+            sample_fn (list): List of sample function for every op
 
         Returns:
 
