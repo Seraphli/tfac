@@ -1,10 +1,52 @@
 import threading
 from queue import Queue
+import time
 
 
 class Cmd(object):
     EXEC = "exec"
     EXIT = "exit"
+
+
+class CmdThread(threading.Thread):
+    def __init__(self, queue, op):
+        super(CmdThread, self).__init__()
+        self.daemon = True
+        self.cmd_queue = queue
+        self.op = op
+
+    def prepare(self, sess):
+        self.sess = sess
+
+    def run(self):
+        cmd = self.cmd_queue.get()
+        while cmd != Cmd.EXIT:
+            if cmd == Cmd.EXEC:
+                self.op()
+            cmd = self.cmd_queue.get()
+
+
+class CmdRunner(object):
+    def __init__(self, op):
+        self.queue = Queue()
+        self.thread = CmdThread(self.queue, op)
+
+    def run(self, sess):
+        self.sess = sess
+        self.thread.prepare(sess)
+        self.thread.start()
+
+    def execute(self):
+        self.queue.put(Cmd.EXEC)
+
+    def join(self):
+        while not self.queue.empty():
+            time.sleep(0.1)
+
+    def close(self):
+        self.queue.put(Cmd.EXIT)
+        self.join()
+        self.thread.join()
 
 
 class OpThread(threading.Thread):
@@ -39,10 +81,12 @@ class OpRunner(object):
         self.queue.put(Cmd.EXEC)
 
     def join(self):
-        self.queue.join()
+        while not self.queue.empty():
+            time.sleep(0.1)
 
     def close(self):
         self.queue.put(Cmd.EXIT)
+        self.join()
         self.thread.join()
 
 
@@ -83,6 +127,11 @@ class SummaryRunner(object):
     def execute(self):
         self.queue.put(Cmd.EXEC)
 
+    def join(self):
+        while not self.queue.empty():
+            time.sleep(0.1)
+
     def close(self):
         self.queue.put(Cmd.EXIT)
+        self.join()
         self.thread.join()
